@@ -1,6 +1,7 @@
 #!/bin/bash
 ext="jpg;png;gif"
 filelist_prefix="filelist_"
+export palette="pal16.png"
 
 folder="$1"
 if [ ! -d "$folder" ]; then
@@ -14,7 +15,7 @@ find "$folder" -type f $find_expr|split -d - "$filelist_prefix"
 
 subscript='
 while read path; do
-	hash=0
+	hash=$(convert "$path" -resize 5x5! -map "$palette" rgb:-|xxd -p|tr -d "\n")
 	echo -e "$path\t$hash"
 done <$0
 '
