@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 ext="jpg;png;gif"
 filelist_prefix="filelist_"
 
@@ -9,7 +9,7 @@ if [ ! -d "$folder" ]; then
 	exit 1
 fi
 
-find_expr=$(sed 's/;/ -or -iname *./g;s/^/-iname *./g' <<< $ext)
+find_expr=$(sed 's/;/ -or -iname \\*./g;s/^/-iname *./g' <<< $ext)
 find "$folder" -type f $find_expr|split -d - "$filelist_prefix"
 
 subscript='
