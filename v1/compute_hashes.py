@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import Image, numpy
+import Image, numpy, scipy.fftpack
 
 
 def binary_array_to_hex(bin_arr):
@@ -40,6 +40,17 @@ def dHash(image, hash_size=8):
     image = image.convert("L").resize((hash_size + 1, hash_size), Image.ANTIALIAS)
     pixels = numpy.array(image.getdata(), dtype=numpy.float).reshape((hash_size + 1, hash_size))
     diff = pixels[1:, :] > pixels[:-1, :]
+    return diff.flatten()
+
+
+def pHash(image, hash_size=32):
+    """ Computes pHash. """
+    image = image.convert("L").resize((hash_size, hash_size), Image.ANTIALIAS)
+    pixels = numpy.array(image.getdata(), dtype=numpy.float).reshape((hash_size, hash_size))
+    dct = scipy.fftpack.dct(pixels)
+    dct_low = dct[:8, 1:9]
+    avg = dct_low.mean()
+    diff = dct_low > avg
     return diff.flatten()
 
 
