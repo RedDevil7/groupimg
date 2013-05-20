@@ -1,65 +1,84 @@
 # -*- coding: utf-8 -*-
-import Image, numpy, scipy.fftpack
+from itertools import repeat
+import multiprocessing
+from PIL import Image
+import numpy
+import scipy.fftpack
 
 
-def binary_array_to_hex(bin_arr):
-    """ Converts binary array to hex string. """
-    h = 0
-    s = []
-    for i, v in enumerate(bin_arr):
-        if v:
-            h += 2 ** (i & 7)
-        if (i & 7) == 7:
-            s.append(hex(h)[2:].zfill(2))
-            h = 0
-    return "".join(s)
+def bin_to_int(bin_arr):
+    """
+    Converts binary array to a vector of integers.
+    """
+    return bin_arr.dot(1 << numpy.arange(bin_arr.shape[-1] - 1, -1, -1))
 
 
-def hex_to_hash(hex_str):
-    """ Converts hex string to hash(binary array). """
-    l = []
-    for i in xrange(0, len(hex_str), 2):
-        h = hex_str[i:i + 2]
-        v = int(h, 16)
-        for j in xrange(8):
-            l.append(v & 2 ** j > 0)
-    return numpy.array(l)
+def int_to_hex(int):
+    """
+    Converts vector of integers to hex string.
+    """
+    return "".join([hex(xx)[2:].zfill(2) for xx in int])
 
 
 def aHash(image, hash_size=8):
-    """ Computes aHash. """
+    """
+    Computes aHash.
+    """
     image = image.convert("L").resize((hash_size, hash_size), Image.ANTIALIAS)
     pixels = numpy.array(image.getdata()).reshape((hash_size, hash_size))
     avg = pixels.mean()
-    diff = pixels > avg
-    return diff.flatten()
+    return pixels > avg
+
 
 
 def dHash(image, hash_size=8):
-    """ Computes dHash. """
+    """
+    Computes dHash.
+    """
     image = image.convert("L").resize((hash_size + 1, hash_size), Image.ANTIALIAS)
     pixels = numpy.array(image.getdata(), dtype=numpy.float).reshape((hash_size + 1, hash_size))
-    diff = pixels[1:, :] > pixels[:-1, :]
-    return diff.flatten()
+    return pixels[1:, :] > pixels[:-1, :]
 
 
 def pHash(image, hash_size=32):
-    """ Computes pHash. """
+    """
+    Computes pHash.
+    """
     image = image.convert("L").resize((hash_size, hash_size), Image.ANTIALIAS)
     pixels = numpy.array(image.getdata(), dtype=numpy.float).reshape((hash_size, hash_size))
     dct = scipy.fftpack.dct(pixels)
     dct_low = dct[:8, 1:9]
     avg = dct_low.mean()
-    diff = dct_low > avg
-    return diff.flatten()
+    return dct_low > avg
 
 
-def get_hash(image_path, hash_function=aHash):
-    """ Returns hash, hex and path of a given image. """
-    image_hash = hash_function(Image.open(image_path))
-    return (image_hash, binary_array_to_hex(image_hash), image_path)
+class Hash(object):
+    def __init__(self, params):
+        (image_path, hash_function) = params
+        self.path = image_path
+        self.binary = hash_function(Image.open(image_path))
+        self.vec = bin_to_int(self.binary)
+        self.hex_str = None
+
+    def __str__(self):
+        if not self.hex_str:
+            self.hex_str = int_to_hex(self.vec)
+        return self.hex_str
+
+    def __eq__(self, other):
+        return numpy.array_equal(self.binary, other.binary)
+
+    def __ne__(self, other):
+        return not numpy.array_equal(self.binary, other.binary)
 
 
-def get_hashes(images, hash_function=aHash):
-    """ Returns hashes of all images. """
-    return [get_hash(image, hash_function) for image in images]
+def get_hashes(image_paths, hash_function=pHash):
+    """
+    Returns hashes of all images.
+    """
+    try:
+        cpu_count = multiprocessing.cpu_count()
+    except NotImplementedError:
+        cpu_count = 2
+    pool = multiprocessing.Pool(processes=cpu_count)
+    return pool.map(Hash, zip(image_paths, repeat(hash_function)))
